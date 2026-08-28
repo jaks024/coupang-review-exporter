@@ -19,6 +19,7 @@ from urllib.request import Request, urlopen
 
 BASE_URL = "https://www.coupang.com"
 MRSCRAPER_URL = "https://sync.scraper.mrscraper.com/api/commerce/coupang/reviews/sync"
+MRSCRAPER_UNBLOCKER_URL = "https://api.mrscraper.com/"
 PRODUCT_PATH_RE = re.compile(r"/products/(\d+)")
 SORT_OPTIONS = {"DATE_DESC", "ORDER_SCORE_ASC", "ORDER_SCORE_DESC"}
 PAGE_SIZE = 30
@@ -159,6 +160,7 @@ class ReviewTransport:
         # fallback key exists, use it immediately instead of spending function
         # time on a direct request that is expected to fail.
         self.use_proxy = bool(self.proxy_key)
+        self.proxy_mode = "marketplace"
 
     def get_page(self, product_id: str, page: int, sort_by: str) -> dict[str, Any]:
         review_url = make_review_url(product_id, page, sort_by)
@@ -194,6 +196,9 @@ class ReviewTransport:
             raise UpstreamTemporaryError("Coupang returned an unexpected non-JSON response.") from error
 
     def _request_proxy(self, review_url: str) -> dict[str, Any]:
+        if self.proxy_mode == "unblocker":
+            return self._request_unblocker(review_url)
+
         status, _, response_body = request_json(
             MRSCRAPER_URL,
             method="POST",
@@ -204,12 +209,15 @@ class ReviewTransport:
             },
             payload={"url": review_url},
         )
+        if status == 404:
+            self.proxy_mode = "unblocker"
+            return self._request_unblocker(review_url)
         if status in {408, 429} or status >= 500:
             raise UpstreamTemporaryError(f"The configured fallback returned HTTP {status}.")
         if status in {401, 403}:
             raise ExporterError("MRSCRAPER_API_KEY was rejected by the configured fallback.")
         if status >= 400:
-            raise ExporterError(f"The configured fallback returned HTTP {status}.")
+            raise ExporterError(self._proxy_error(status, response_body))
         try:
             body = json.loads(response_body)
         except json.JSONDecodeError as error:
@@ -217,6 +225,66 @@ class ReviewTransport:
         if not body.get("success") or not isinstance(body.get("data"), dict):
             raise ExporterError(body.get("message") or "The configured fallback returned no review data.")
         return body["data"]
+
+    def _request_unblocker(self, review_url: str) -> dict[str, Any]:
+        query = urlencode(
+            [
+                ("url", review_url),
+                ("html", "true"),
+                ("super", "true"),
+                ("proxyCountry", "kr"),
+            ]
+        )
+        status, headers, response_body = request_json(
+            f"{MRSCRAPER_UNBLOCKER_URL}?{query}",
+            headers={"x-api-token": self.proxy_key, "user-agent": USER_AGENT},
+        )
+        if status in {408, 429} or status >= 500:
+            raise UpstreamTemporaryError(f"The Web Unblocker returned HTTP {status}.")
+        if status in {401, 403}:
+            raise ExporterError("MRSCRAPER_API_KEY was rejected by the Web Unblocker.")
+        if status >= 400:
+            raise ExporterError(self._proxy_error(status, response_body))
+
+        target_status = int(headers.get("x-status-code", "200"))
+        if target_status >= 400:
+            raise UpstreamTemporaryError(f"The Web Unblocker received HTTP {target_status} from Coupang.")
+        return self._decode_coupang_payload(response_body)
+
+    @staticmethod
+    def _decode_coupang_payload(response_body: str) -> dict[str, Any]:
+        try:
+            value: Any = json.loads(response_body)
+            for _ in range(4):
+                if isinstance(value, dict) and "rCode" in value:
+                    return value
+                if isinstance(value, dict):
+                    nested = next(
+                        (value[key] for key in ("data", "body", "content", "html") if value.get(key)),
+                        None,
+                    )
+                    if nested is None:
+                        break
+                    value = nested
+                    continue
+                if isinstance(value, str):
+                    value = json.loads(value)
+                    continue
+                break
+        except (json.JSONDecodeError, TypeError):
+            pass
+        raise ExporterError("The Web Unblocker did not return Coupang review JSON.")
+
+    @staticmethod
+    def _proxy_error(status: int, response_body: str) -> str:
+        try:
+            body = json.loads(response_body)
+            message = body.get("message") or body.get("error")
+            if message:
+                return f"The configured fallback returned HTTP {status}: {message}"
+        except (json.JSONDecodeError, AttributeError):
+            pass
+        return f"The configured fallback returned HTTP {status}."
 
 
 def parse_review_page(payload: dict[str, Any]) -> tuple[list[dict[str, Any]], int, int]:

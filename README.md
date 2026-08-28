@@ -18,8 +18,9 @@ Coupang's raw response.
 - The server uses Python's built-in HTTP client, so the function has no native Python dependencies.
 - `vercel.json` places the function in Seoul (`icn1`) and gives it a 300-second limit.
 - Direct Coupang requests are attempted first. If they are blocked and
-  `MRSCRAPER_API_KEY` is configured, the function automatically uses that managed
-  fallback for the remaining pages.
+  `MRSCRAPER_API_KEY` is configured, the function uses MrScraper's Coupang endpoint.
+  If that marketplace route is unavailable, it automatically switches to MrScraper's
+  Web Unblocker for the remaining pages.
 
 The collector validates that the input is a Coupang product URL, uses only the numeric
 product ID in the upstream request, paginates in batches of 30, retries temporary errors,

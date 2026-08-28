@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from api.reviews import (
     MRSCRAPER_URL,
+    MRSCRAPER_UNBLOCKER_URL,
     InvalidProductUrl,
     ReviewTransport,
     normalize_review,
@@ -57,11 +58,11 @@ class CsvTests(unittest.TestCase):
 
 
 class FakeResponse:
-    status = 200
     headers = {"content-type": "application/json"}
 
-    def __init__(self, body: dict[str, object]) -> None:
+    def __init__(self, body: dict[str, object], status: int = 200) -> None:
         self.body = json.dumps(body).encode("utf-8")
+        self.status = status
 
     def __enter__(self) -> "FakeResponse":
         return self
@@ -88,6 +89,24 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(request.get_header("Authorization"), "Bearer test-token")
         self.assertIn("productId=1920045216", request_body["url"])
         self.assertEqual(payload["rCode"], "RET0000")
+
+    def test_proxy_uses_web_unblocker_when_marketplace_route_is_missing(self) -> None:
+        responses = [
+            FakeResponse({}, status=404),
+            FakeResponse({"rCode": "RET0000"}),
+        ]
+        with patch.dict(os.environ, {"MRSCRAPER_API_KEY": "test-token"}), patch(
+            "api.reviews.urlopen", side_effect=responses
+        ) as mocked_urlopen:
+            transport = ReviewTransport("https://www.coupang.com/vp/products/1920045216")
+            transport.get_page("1920045216", 1, "DATE_DESC")
+
+        requested_urls = [call.args[0].full_url for call in mocked_urlopen.call_args_list]
+        self.assertEqual(requested_urls[0], MRSCRAPER_URL)
+        self.assertTrue(requested_urls[1].startswith(MRSCRAPER_UNBLOCKER_URL))
+        self.assertIn("proxyCountry=kr", requested_urls[1])
+        self.assertNotIn("test-token", requested_urls[1])
+        self.assertEqual(mocked_urlopen.call_args_list[1].args[0].get_header("X-api-token"), "test-token")
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ import re
 import time
 import traceback
 from datetime import UTC, datetime
+from html.parser import HTMLParser
 from http.server import BaseHTTPRequestHandler
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -73,6 +74,29 @@ class UpstreamTemporaryError(ExporterError):
 class TooManyReviews(ExporterError):
     code = "TOO_MANY_REVIEW_PAGES"
     status = 422
+
+
+class PreformattedTextParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.in_pre = False
+        self.parts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag.lower() == "pre":
+            self.in_pre = True
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() == "pre":
+            self.in_pre = False
+
+    def handle_data(self, data: str) -> None:
+        if self.in_pre:
+            self.parts.append(data)
+
+    @property
+    def text(self) -> str:
+        return "".join(self.parts)
 
 
 def parse_product_url(value: str) -> tuple[str, str]:
@@ -249,31 +273,77 @@ class ReviewTransport:
         target_status = int(headers.get("x-status-code", "200"))
         if target_status >= 400:
             raise UpstreamTemporaryError(f"The Web Unblocker received HTTP {target_status} from Coupang.")
-        return self._decode_coupang_payload(response_body)
+        return self._decode_coupang_payload(
+            response_body,
+            content_type=headers.get("content-type", "unknown"),
+        )
+
+    @classmethod
+    def _decode_coupang_payload(
+        cls,
+        response_body: str,
+        content_type: str = "unknown",
+    ) -> dict[str, Any]:
+        value: Any = response_body
+        for _ in range(6):
+            if isinstance(value, dict) and "rCode" in value:
+                return value
+            if isinstance(value, dict):
+                nested = next(
+                    (
+                        value[key]
+                        for key in ("data", "body", "content", "html", "result")
+                        if value.get(key) is not None
+                    ),
+                    None,
+                )
+                if nested is None:
+                    message = value.get("message") or value.get("error")
+                    if message:
+                        raise ExporterError(f"The Web Unblocker returned: {message}")
+                    break
+                value = nested
+                continue
+            if isinstance(value, str):
+                decoded = cls._decode_json_text(value)
+                if decoded is None:
+                    break
+                value = decoded
+                continue
+            break
+
+        response_kind = "HTML" if "<html" in response_body.lower() else "non-JSON content"
+        raise ExporterError(
+            f"The Web Unblocker returned {response_kind} instead of Coupang review JSON "
+            f"(content type: {content_type}, {len(response_body)} characters)."
+        )
 
     @staticmethod
-    def _decode_coupang_payload(response_body: str) -> dict[str, Any]:
+    def _decode_json_text(value: str) -> Any | None:
+        value = value.lstrip("\ufeff \t\r\n")
         try:
-            value: Any = json.loads(response_body)
-            for _ in range(4):
-                if isinstance(value, dict) and "rCode" in value:
-                    return value
-                if isinstance(value, dict):
-                    nested = next(
-                        (value[key] for key in ("data", "body", "content", "html") if value.get(key)),
-                        None,
-                    )
-                    if nested is None:
-                        break
-                    value = nested
-                    continue
-                if isinstance(value, str):
-                    value = json.loads(value)
-                    continue
-                break
-        except (json.JSONDecodeError, TypeError):
+            return json.loads(value)
+        except json.JSONDecodeError:
             pass
-        raise ExporterError("The Web Unblocker did not return Coupang review JSON.")
+
+        candidates = [value]
+        if "<pre" in value.lower():
+            parser = PreformattedTextParser()
+            parser.feed(value)
+            if parser.text:
+                candidates.insert(0, parser.text.lstrip("\ufeff \t\r\n"))
+
+        decoder = json.JSONDecoder()
+        for candidate in candidates:
+            match = re.search(r'\{\s*"rCode"\s*:', candidate)
+            if not match:
+                continue
+            try:
+                decoded, _ = decoder.raw_decode(candidate, match.start())
+                return decoded
+            except json.JSONDecodeError:
+                continue
+        return None
 
     @staticmethod
     def _proxy_error(status: int, response_body: str) -> str:

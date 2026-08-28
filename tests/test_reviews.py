@@ -108,6 +108,24 @@ class TransportTests(unittest.TestCase):
         self.assertNotIn("test-token", requested_urls[1])
         self.assertEqual(mocked_urlopen.call_args_list[1].args[0].get_header("X-api-token"), "test-token")
 
+    def test_decodes_browser_wrapped_json(self) -> None:
+        browser_html = (
+            '<html><body><pre>{&quot;rCode&quot;:&quot;RET0000&quot;,'
+            '&quot;rData&quot;:{&quot;paging&quot;:{}}}</pre></body></html>'
+        )
+
+        payload = ReviewTransport._decode_coupang_payload(browser_html, "text/html")
+
+        self.assertEqual(payload["rCode"], "RET0000")
+
+    def test_decodes_nested_browser_wrapped_json(self) -> None:
+        browser_html = '<html><body><pre>{"rCode":"RET0000"}</pre></body></html>'
+        response_body = json.dumps({"success": True, "data": browser_html})
+
+        payload = ReviewTransport._decode_coupang_payload(response_body, "application/json")
+
+        self.assertEqual(payload["rCode"], "RET0000")
+
 
 if __name__ == "__main__":
     unittest.main()

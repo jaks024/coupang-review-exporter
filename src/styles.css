@@ -1,0 +1,440 @@
+:root {
+  font-family: "IBM Plex Sans Variable", "IBM Plex Sans", sans-serif;
+  color: var(--ink-primary);
+  background: var(--paper-base);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --paper-base: #f3f1eb;
+  --paper-raised: #faf9f5;
+  --paper-inset: #ebe9e2;
+  --ink-primary: #132c3c;
+  --ink-secondary: #3f5664;
+  --ink-tertiary: #6d7e87;
+  --ink-muted: #9aa5aa;
+  --line-soft: rgba(19, 44, 60, 0.12);
+  --line-standard: rgba(19, 44, 60, 0.22);
+  --line-emphasis: rgba(19, 44, 60, 0.45);
+  --trace-blue: #2c6e91;
+  --trace-soft: #dfeef5;
+  --csv-green: #2f7858;
+  --csv-soft: #e2efe7;
+  --alert-red: #a44242;
+  --alert-soft: #f4dfdc;
+  --focus-ring: #2c6e91;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --radius-control: 3px;
+  --radius-panel: 5px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--paper-base);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled,
+input:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 56px;
+  padding: 0 clamp(20px, 4vw, 56px);
+  border-bottom: 1px solid var(--line-standard);
+  background: rgba(243, 241, 235, 0.94);
+}
+
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--ink-primary);
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+}
+
+.wordmark-mark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 24px;
+  background: var(--ink-primary);
+  color: var(--paper-raised);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.runtime-note {
+  color: var(--ink-tertiary);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+}
+
+.workspace {
+  width: min(940px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: clamp(56px, 9vw, 104px) 0 72px;
+}
+
+.intro {
+  max-width: 760px;
+}
+
+.eyebrow,
+.receipt-label {
+  margin: 0 0 var(--space-4);
+  color: var(--trace-blue);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+
+h1 {
+  max-width: 760px;
+  margin: 0;
+  color: var(--ink-primary);
+  font-size: clamp(42px, 7vw, 72px);
+  font-weight: 570;
+  letter-spacing: -0.055em;
+  line-height: 0.98;
+}
+
+.lede {
+  max-width: 680px;
+  margin: var(--space-6) 0 0;
+  color: var(--ink-secondary);
+  font-size: 17px;
+  line-height: 1.65;
+}
+
+.export-panel {
+  margin-top: var(--space-12);
+  border: 1px solid var(--line-standard);
+  border-radius: var(--radius-panel);
+  background: var(--paper-raised);
+}
+
+form {
+  padding: clamp(24px, 5vw, 44px);
+}
+
+.field-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-3);
+}
+
+label {
+  color: var(--ink-primary);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.example-button,
+.download-again {
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line-emphasis);
+  background: transparent;
+  color: var(--ink-secondary);
+  font-size: 12px;
+}
+
+.example-button:hover,
+.download-again:hover {
+  color: var(--trace-blue);
+  border-bottom-color: var(--trace-blue);
+}
+
+.input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-3);
+}
+
+input {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--line-standard);
+  border-radius: var(--radius-control);
+  outline: none;
+  background: var(--paper-inset);
+  color: var(--ink-primary);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 13px;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+input::placeholder {
+  color: var(--ink-muted);
+}
+
+input:focus {
+  border-color: var(--focus-ring);
+  background: var(--paper-raised);
+  box-shadow: 0 0 0 3px rgba(44, 110, 145, 0.13);
+}
+
+.export-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 52px;
+  padding: 0 var(--space-6);
+  border: 1px solid var(--ink-primary);
+  border-radius: var(--radius-control);
+  background: var(--ink-primary);
+  color: var(--paper-raised);
+  font-size: 13px;
+  font-weight: 650;
+  transition: background 120ms ease, transform 120ms ease;
+}
+
+.export-button:hover:not(:disabled) {
+  background: #21465d;
+}
+
+.export-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.export-button:focus-visible,
+.example-button:focus-visible,
+.download-again:focus-visible {
+  outline: 3px solid rgba(44, 110, 145, 0.22);
+  outline-offset: 3px;
+}
+
+.field-note {
+  margin: var(--space-3) 0 0;
+  color: var(--ink-tertiary);
+  font-size: 12px;
+}
+
+.extraction-rail {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 0;
+  padding: var(--space-6) clamp(24px, 5vw, 44px);
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+  list-style: none;
+}
+
+.rail-step {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+}
+
+.rail-step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: var(--space-4);
+  left: 108px;
+  height: 1px;
+  background: var(--line-standard);
+}
+
+.rail-node {
+  width: 9px;
+  height: 9px;
+  border: 1px solid var(--line-emphasis);
+  background: var(--paper-raised);
+}
+
+.rail-step--active {
+  color: var(--trace-blue);
+}
+
+.rail-step--active .rail-node {
+  border-color: var(--trace-blue);
+  background: var(--trace-blue);
+  animation: rail-pulse 1.2s ease-in-out infinite;
+}
+
+.rail-step--complete {
+  color: var(--csv-green);
+}
+
+.rail-step--complete .rail-node {
+  border-color: var(--csv-green);
+  background: var(--csv-green);
+}
+
+.rail-step--error {
+  color: var(--alert-red);
+}
+
+.rail-step--error .rail-node {
+  border-color: var(--alert-red);
+  background: var(--alert-red);
+}
+
+@keyframes rail-pulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail-step--active .rail-node {
+    animation: none;
+  }
+}
+
+.status-region {
+  min-height: 0;
+}
+
+.status {
+  margin: 0;
+  padding: var(--space-4) clamp(24px, 5vw, 44px);
+  font-size: 13px;
+}
+
+.status--working {
+  color: var(--trace-blue);
+  background: var(--trace-soft);
+}
+
+.status--error {
+  color: var(--alert-red);
+  background: var(--alert-soft);
+}
+
+.receipt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: var(--space-5) clamp(24px, 5vw, 44px);
+  background: var(--csv-soft);
+}
+
+.receipt > div {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.receipt-label {
+  margin: 0;
+  color: var(--csv-green);
+}
+
+.receipt strong {
+  color: var(--ink-primary);
+  font-size: 22px;
+  font-weight: 620;
+}
+
+.receipt-meta {
+  color: var(--ink-secondary);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+}
+
+.privacy-note {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: var(--space-4);
+  margin-top: var(--space-8);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line-standard);
+}
+
+.privacy-index {
+  color: var(--ink-muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+}
+
+.privacy-note p {
+  max-width: 700px;
+  margin: 0;
+  color: var(--ink-tertiary);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+@media (max-width: 680px) {
+  .runtime-note {
+    display: none;
+  }
+
+  .workspace {
+    width: min(100% - 24px, 940px);
+    padding-top: 48px;
+  }
+
+  h1 {
+    font-size: clamp(38px, 13vw, 58px);
+  }
+
+  .input-row {
+    grid-template-columns: 1fr;
+  }
+
+  .export-button {
+    width: 100%;
+  }
+
+  .extraction-rail {
+    gap: var(--space-3);
+  }
+
+  .rail-step {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .rail-step:not(:last-child)::after {
+    display: none;
+  }
+
+  .receipt {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

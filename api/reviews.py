@@ -8,12 +8,13 @@ import json
 import os
 import re
 import time
+import traceback
 from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler
 from typing import Any
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlparse
-
-from curl_cffi import requests
+from urllib.request import Request, urlopen
 
 
 BASE_URL = "https://www.coupang.com"
@@ -122,24 +123,42 @@ def request_headers(source_url: str) -> dict[str, str]:
     return headers
 
 
-def response_is_blocked(response: Any) -> bool:
-    content_type = response.headers.get("content-type", "")
-    if response.status_code in {401, 403}:
+def response_is_blocked(status: int, headers: Any, body: str) -> bool:
+    content_type = headers.get("content-type", "")
+    if status in {401, 403}:
         return True
     if "text/html" in content_type:
-        body = response.text
         return "Access Denied" in body or "sec-if-cpt-container" in body or "error403" in body
     return False
+
+
+def request_json(
+    url: str,
+    *,
+    method: str = "GET",
+    headers: dict[str, str] | None = None,
+    payload: dict[str, Any] | None = None,
+) -> tuple[int, Any, str]:
+    data = json.dumps(payload).encode("utf-8") if payload is not None else None
+    request = Request(url, data=data, headers=headers or {}, method=method)
+    try:
+        with urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
+            return response.status, response.headers, response.read().decode("utf-8", errors="replace")
+    except HTTPError as error:
+        return error.code, error.headers, error.read().decode("utf-8", errors="replace")
+    except (OSError, URLError) as error:
+        raise UpstreamTemporaryError(f"The upstream request failed: {error.reason if isinstance(error, URLError) else error}") from error
 
 
 class ReviewTransport:
     def __init__(self, source_url: str) -> None:
         self.source_url = source_url
         self.headers = request_headers(source_url)
-        self.session = requests.Session(impersonate="chrome136")
         self.proxy_key = os.environ.get("MRSCRAPER_API_KEY", "").strip()
-        self.use_proxy = False
-        self.warmed = False
+        # Vercel data-center requests are commonly blocked by Coupang. When a
+        # fallback key exists, use it immediately instead of spending function
+        # time on a direct request that is expected to fail.
+        self.use_proxy = bool(self.proxy_key)
 
     def get_page(self, product_id: str, page: int, sort_by: str) -> dict[str, Any]:
         review_url = make_review_url(product_id, page, sort_by)
@@ -161,48 +180,40 @@ class ReviewTransport:
                 time.sleep(0.6 * (attempt + 1))
         raise UpstreamTemporaryError("The review source did not respond after retries.")
 
-    def _warm(self) -> None:
-        if self.warmed:
-            return
-        self.warmed = True
-        try:
-            self.session.get(BASE_URL, headers=self.headers, timeout=10)
-        except Exception:
-            pass
-
     def _request_direct(self, review_url: str) -> dict[str, Any]:
-        self._warm()
-        response = self.session.get(
-            review_url,
-            headers=self.headers,
-            timeout=HTTP_TIMEOUT_SECONDS,
-        )
-        if response_is_blocked(response):
+        status, headers, body = request_json(review_url, headers=self.headers)
+        if response_is_blocked(status, headers, body):
             raise CoupangBlocked("Coupang rejected the direct review request.")
-        if response.status_code == 429 or response.status_code >= 500:
-            raise UpstreamTemporaryError(f"Coupang returned HTTP {response.status_code}.")
-        response.raise_for_status()
+        if status == 429 or status >= 500:
+            raise UpstreamTemporaryError(f"Coupang returned HTTP {status}.")
+        if status >= 400:
+            raise ExporterError(f"Coupang returned HTTP {status}.")
         try:
-            return response.json()
-        except ValueError as error:
+            return json.loads(body)
+        except json.JSONDecodeError as error:
             raise UpstreamTemporaryError("Coupang returned an unexpected non-JSON response.") from error
 
     def _request_proxy(self, review_url: str) -> dict[str, Any]:
-        response = requests.post(
+        status, _, response_body = request_json(
             MRSCRAPER_URL,
+            method="POST",
             headers={
                 "authorization": f"Bearer {self.proxy_key}",
                 "content-type": "application/json",
+                "user-agent": USER_AGENT,
             },
-            json={"url": review_url},
-            timeout=HTTP_TIMEOUT_SECONDS,
+            payload={"url": review_url},
         )
-        if response.status_code in {408, 429} or response.status_code >= 500:
-            raise UpstreamTemporaryError(f"The configured fallback returned HTTP {response.status_code}.")
-        if response.status_code in {401, 403}:
+        if status in {408, 429} or status >= 500:
+            raise UpstreamTemporaryError(f"The configured fallback returned HTTP {status}.")
+        if status in {401, 403}:
             raise ExporterError("MRSCRAPER_API_KEY was rejected by the configured fallback.")
-        response.raise_for_status()
-        body = response.json()
+        if status >= 400:
+            raise ExporterError(f"The configured fallback returned HTTP {status}.")
+        try:
+            body = json.loads(response_body)
+        except json.JSONDecodeError as error:
+            raise ExporterError("The configured fallback returned an unexpected response.") from error
         if not body.get("success") or not isinstance(body.get("data"), dict):
             raise ExporterError(body.get("message") or "The configured fallback returned no review data.")
         return body["data"]
@@ -351,6 +362,7 @@ class handler(BaseHTTPRequestHandler):
         except ExporterError as error:
             self._send_json(error.status, {"code": error.code, "message": str(error)})
         except Exception:
+            traceback.print_exc()
             self._send_json(
                 500,
                 {
@@ -379,4 +391,3 @@ __all__ = [
     "parse_review_page",
     "reviews_to_csv",
 ]
-

@@ -15,8 +15,8 @@ Coupang's raw response.
 
 - Vite + React frontend.
 - Python Vercel Function at `api/reviews.py`.
-- `curl-cffi` provides a Chrome-compatible TLS/browser signature.
-- `vercel.json` places the function in Seoul (`icn1`) and gives it a 60-second limit.
+- The server uses Python's built-in HTTP client, so the function has no native Python dependencies.
+- `vercel.json` places the function in Seoul (`icn1`) and gives it a 300-second limit.
 - Direct Coupang requests are attempted first. If they are blocked and
   `MRSCRAPER_API_KEY` is configured, the function automatically uses that managed
   fallback for the remaining pages.
@@ -51,7 +51,6 @@ Install the frontend and Python dependencies:
 ```powershell
 pnpm install
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
 Start the local API in one terminal:
@@ -90,4 +89,3 @@ and applicable law.
 ## License
 
 MIT
-
